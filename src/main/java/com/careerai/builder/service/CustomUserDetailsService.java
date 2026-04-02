@@ -24,7 +24,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
-                user.getPasswordHash(),
+                user.getPasswordHash() != null ? user.getPasswordHash() : "EXTERNAL_AUTH_NO_PASSWORD",
                 Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
         );
     }

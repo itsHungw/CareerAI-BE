@@ -97,13 +97,12 @@ public class AuthService {
                 User user = userRepository.findByEmail(email).orElse(null);
                 
                 if (user == null) {
-                    // Create new user for google
-                    user = User.builder()
-                            .email(email)
-                            .passwordHash(null) // Không có mật khẩu vì login bằng Google
-                            .provider(AuthProvider.GOOGLE)
-                            .role(Role.USER)
-                            .build();
+                    // Create new user for google (Design Xịn)
+                    user = new User();
+                    user.setEmail(email);
+                    user.setProvider(AuthProvider.GOOGLE);
+                    user.setPasswordHash(null); // OK vì đã fix schema nullable
+                    user.setRole(Role.USER);
                     userRepository.save(user);
                 } else if (user.getProvider() != AuthProvider.GOOGLE) {
                     throw new ApiException("Email is mapped to a local account. Please login with password.", HttpStatus.BAD_REQUEST);
