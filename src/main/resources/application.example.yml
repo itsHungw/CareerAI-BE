@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: CareerAI-Builder
+  datasource:
+    url: jdbc:postgresql://localhost:5432/careerai
+    username: postgres
+    password: YOUR_DATABASE_PASSWORD_HERE
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+server:
+  port: 8080
+
+jwt:
+  secret: YOUR_SUPER_SECRET_JWT_KEY_HERE_MUST_BE_LONG_ENOUGH
+  expiration: 86400000 
+
+app:
+  upload-dir: cv-uploads/
