@@ -3,8 +3,11 @@ package com.careerai.builder.service;
 import com.careerai.builder.domain.entity.CV;
 import com.careerai.builder.domain.entity.User;
 import com.careerai.builder.dto.CVResponse;
+import com.careerai.builder.exception.ApiException;
 import com.careerai.builder.repository.CVRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -39,5 +42,12 @@ public class CVService {
                 .fileUrl(savedCv.getFileUrl())
                 .parsedContent(savedCv.getParsedContent())
                 .build();
+    }
+
+    public Resource loadCvFile(String storedFileName) {
+        if (storedFileName == null || storedFileName.isBlank()) {
+            throw new ApiException("Invalid file name.", HttpStatus.BAD_REQUEST);
+        }
+        return fileStorageService.loadFileAsResource(storedFileName);
     }
 }

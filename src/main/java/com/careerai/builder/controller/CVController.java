@@ -7,7 +7,10 @@ import com.careerai.builder.exception.ApiException;
 import com.careerai.builder.repository.UserRepository;
 import com.careerai.builder.service.CVService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -36,5 +39,15 @@ public class CVController {
         CVResponse result = cvService.uploadAndParseCV(file, user);
         
         return ResponseEntity.ok(ApiResponse.success("CV uploaded and parsed successfully", result));
+    }
+
+    @GetMapping("/download/{fileName:.+}")
+    public ResponseEntity<Resource> downloadCV(@PathVariable String fileName) {
+        Resource resource = cvService.loadCvFile(fileName);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + resource.getFilename() + "\"")
+                .body(resource);
     }
 }

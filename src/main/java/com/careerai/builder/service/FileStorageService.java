@@ -2,6 +2,8 @@ package com.careerai.builder.service;
 
 import com.careerai.builder.exception.ApiException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -55,6 +57,24 @@ public class FileStorageService {
             return newFileName;
         } catch (IOException ex) {
             throw new ApiException("Could not store file " + originalFileName + ". Please try again!", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    public Resource loadFileAsResource(String fileName) {
+        try {
+            Path filePath = this.fileStorageLocation.resolve(fileName).normalize();
+            if (!filePath.startsWith(this.fileStorageLocation)) {
+                throw new ApiException("Invalid file path.", HttpStatus.BAD_REQUEST);
+            }
+
+            Resource resource = new UrlResource(filePath.toUri());
+            if (resource.exists() && resource.isReadable()) {
+                return resource;
+            }
+
+            throw new ApiException("File not found.", HttpStatus.NOT_FOUND);
+        } catch (IOException ex) {
+            throw new ApiException("File not found.", HttpStatus.NOT_FOUND);
         }
     }
 }
