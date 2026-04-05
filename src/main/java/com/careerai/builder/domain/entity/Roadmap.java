@@ -8,13 +8,13 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "cvs")
+@Table(name = "roadmaps")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class CV {
+public class Roadmap {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -24,22 +24,20 @@ public class CV {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false)
-    private String fileName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "cv_id")
+    private CV sourceCv;
 
     @Column(nullable = false)
-    private String fileUrl;
+    private String targetTitle;
 
-    @Column(columnDefinition = "TEXT")
-    private String rawText; // The full text extracted from PDF
-
-    @Column(columnDefinition = "TEXT")
-    private String parsedContent; // JSON or structured summary from AI
-
-    @Column(columnDefinition = "TEXT")
-    private String summary; // 1-2 paragraph professional overview
+    @Enumerated(EnumType.STRING)
+    private RoadmapStatus status;
 
     @CreationTimestamp
-    @Column(updatable = false)
     private LocalDateTime createdAt;
+
+    public enum RoadmapStatus {
+        ACTIVE, ARCHIVED
+    }
 }
