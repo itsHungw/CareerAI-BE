@@ -71,7 +71,6 @@ public class OpenAiProvider extends AbstractHttpAiProvider implements AiProvider
     private JsonNode buildRequestBody(String systemPrompt, String userPrompt) {
         return getObjectMapperTree(java.util.Map.of(
                 "model", aiProperties.getOpenai().getModel(),
-                "temperature", aiProperties.getOpenai().getTemperature(),
                 "input", java.util.List.of(
                         java.util.Map.of(
                                 "role", "system",

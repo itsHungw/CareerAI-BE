@@ -14,6 +14,8 @@ import com.careerai.builder.repository.CVRepository;
 import com.careerai.builder.repository.CVSkillRepository;
 import com.careerai.builder.repository.RoadmapRepository;
 import com.careerai.builder.repository.RoadmapStepRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -38,6 +40,7 @@ public class RoadmapService {
     private final RoadmapStepRepository roadmapStepRepository;
     private final CVRepository cvRepository;
     private final CVSkillRepository cvSkillRepository;
+    private final ObjectMapper objectMapper;
 
     @lombok.Data
     @lombok.AllArgsConstructor
@@ -258,9 +261,11 @@ public class RoadmapService {
     }
 
     private String resourcesJson(String... resources) {
-        return "[" + java.util.Arrays.stream(resources)
-                .map(resource -> "\"" + resource.replace("\"", "\\\"") + "\"")
-                .reduce((left, right) -> left + "," + right)
-                .orElse("") + "]";
+        try {
+            return objectMapper.writeValueAsString(List.of(resources));
+        } catch (JsonProcessingException e) {
+            // Fallback: return empty JSON array
+            return "[]";
+        }
     }
 }

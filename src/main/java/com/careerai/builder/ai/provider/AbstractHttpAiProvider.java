@@ -2,7 +2,7 @@ package com.careerai.builder.ai.provider;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 
@@ -14,16 +14,21 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
-@RequiredArgsConstructor
 public abstract class AbstractHttpAiProvider {
 
     private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
     private final int timeoutSeconds;
 
-    protected JsonNode postJson(String url, JsonNode body, HttpHeaders headers) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newBuilder()
+    protected AbstractHttpAiProvider(ObjectMapper objectMapper, int timeoutSeconds) {
+        this.objectMapper = objectMapper;
+        this.timeoutSeconds = timeoutSeconds;
+        this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(timeoutSeconds))
                 .build();
+    }
+
+    protected JsonNode postJson(String url, JsonNode body, HttpHeaders headers) throws IOException, InterruptedException {
 
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -33,7 +38,7 @@ public abstract class AbstractHttpAiProvider {
 
         headers.forEach((headerName, values) -> values.forEach(value -> requestBuilder.header(headerName, value)));
 
-        HttpResponse<String> response = client.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
             throw new IOException("AI provider request failed with status " + response.statusCode() + ": " + response.body());
         }

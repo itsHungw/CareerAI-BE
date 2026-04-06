@@ -4,12 +4,14 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.io.DecodingException;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import java.security.Key;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -73,7 +75,27 @@ public class JwtUtil {
     }
 
     private Key getSignInKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
+        if (secretKey == null || secretKey.isBlank()) {
+            throw new IllegalStateException(
+                    "JWT secret is missing. Set JWT_SECRET to a value with at least 32 bytes."
+            );
+        }
+
+        byte[] keyBytes = decodeSecretKey(secretKey.trim());
+        if (keyBytes.length < 32) {
+            throw new IllegalStateException(
+                    "JWT secret is too short. Use at least 32 bytes for HS256."
+            );
+        }
+
         return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    private byte[] decodeSecretKey(String rawSecret) {
+        try {
+            return Decoders.BASE64.decode(rawSecret);
+        } catch (IllegalArgumentException | DecodingException ignored) {
+            return rawSecret.getBytes(StandardCharsets.UTF_8);
+        }
     }
 }

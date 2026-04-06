@@ -13,6 +13,9 @@ import com.careerai.builder.repository.CVRepository;
 import com.careerai.builder.repository.CVSkillRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -21,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -139,15 +143,40 @@ public class CVService {
     }
 
     private String extractSearchableText(MultipartFile file, String originalFileName) throws IOException {
-        String bytePreview = new String(file.getBytes(), StandardCharsets.ISO_8859_1);
-        String normalizedPreview = bytePreview.replaceAll("[^\\p{L}\\p{N}\\.\\+#\\-/ ]", " ");
-        if (normalizedPreview.length() > 4000) {
-            normalizedPreview = normalizedPreview.substring(0, 4000);
+        String extractedPdfText = extractPdfText(file);
+        if (!extractedPdfText.isBlank()) {
+            String normalizedText = normalizeExtractedText(extractedPdfText);
+            return String.join(" ",
+                    "file-name:", originalFileName,
+                    "pdf-text:", normalizedText);
         }
 
+        String bytePreview = new String(file.getBytes(), StandardCharsets.ISO_8859_1);
+        String normalizedPreview = normalizeExtractedText(bytePreview);
         return String.join(" ",
                 "file-name:", originalFileName,
                 "heuristic-preview:", normalizedPreview);
+    }
+
+    private String extractPdfText(MultipartFile file) {
+        try (InputStream inputStream = file.getInputStream();
+             PDDocument document = Loader.loadPDF(inputStream.readAllBytes())) {
+            PDFTextStripper textStripper = new PDFTextStripper();
+            return textStripper.getText(document);
+        } catch (IOException ex) {
+            log.warn("Failed to parse PDF content for '{}': {}", file.getOriginalFilename(), ex.getMessage());
+            return "";
+        }
+    }
+
+    private String normalizeExtractedText(String text) {
+        String normalized = text.replaceAll("[^\\p{L}\\p{N}\\.\\+#\\-/ ]", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        if (normalized.length() > 12000) {
+            return normalized.substring(0, 12000);
+        }
+        return normalized;
     }
 
     private CvAnalysisResult analyzeCvWithFallback(String originalFileName, String extractedText) {

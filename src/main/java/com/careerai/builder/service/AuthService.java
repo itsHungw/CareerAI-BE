@@ -54,7 +54,7 @@ public class AuthService {
         User user = User.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
-                .role(Role.USER) // Role mặc định
+                .role(Role.USER)
                 .build();
 
         userRepository.save(user);
@@ -90,44 +90,43 @@ public class AuthService {
 
     public AuthResponse loginWithGoogle(GoogleLoginRequest request) {
         try {
-            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(new NetHttpTransport(),
-                    new GsonFactory())
+            GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
+                    new NetHttpTransport(), new GsonFactory())
                     .setAudience(Collections.singletonList(googleClientId))
                     .build();
 
             GoogleIdToken idToken = verifier.verify(request.getIdToken());
-            if (idToken != null) {
-                GoogleIdToken.Payload payload = idToken.getPayload();
-                String email = payload.getEmail();
-
-                // Check if user exists
-                User user = userRepository.findByEmail(email).orElse(null);
-
-                if (user == null) {
-                    // Create new user for google (Design Xịn)
-                    user = new User();
-                    user.setEmail(email);
-                    user.setProvider(AuthProvider.GOOGLE);
-                    user.setPasswordHash(null); // OK vì đã fix schema nullable
-                    user.setRole(Role.USER);
-                    userRepository.save(user);
-                } else if (user.getProvider() != AuthProvider.GOOGLE) {
-                    throw new ApiException("Email is mapped to a local account. Please login with password.",
-                            HttpStatus.BAD_REQUEST);
-                }
-
-                // Return internal JWT
-                UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
-                String accessToken = jwtUtil.generateToken(userDetails);
-                String refreshToken = createRefreshToken(user).getToken();
-
-                return new AuthResponse(accessToken, refreshToken, new AuthResponse.UserData(
-                        user.getId(),
-                        user.getEmail(),
-                        user.getRole().name()));
-            } else {
+            if (idToken == null) {
                 throw new ApiException("Invalid Google ID Token", HttpStatus.UNAUTHORIZED);
             }
+
+            GoogleIdToken.Payload payload = idToken.getPayload();
+            String email = payload.getEmail();
+
+            User user = userRepository.findByEmail(email).orElse(null);
+
+            if (user == null) {
+                user = new User();
+                user.setEmail(email);
+                user.setProvider(AuthProvider.GOOGLE);
+                user.setPasswordHash(null);
+                user.setRole(Role.USER);
+                userRepository.save(user);
+            } else if (user.getProvider() != AuthProvider.GOOGLE) {
+                throw new ApiException(
+                        "Email is mapped to a local account. Please login with password.",
+                        HttpStatus.BAD_REQUEST);
+            }
+
+            UserDetails userDetails = userDetailsService.loadUserByUsername(user.getEmail());
+            String accessToken = jwtUtil.generateToken(userDetails);
+            String refreshToken = createRefreshToken(user).getToken();
+
+            return new AuthResponse(accessToken, refreshToken, new AuthResponse.UserData(
+                    user.getId(),
+                    user.getEmail(),
+                    user.getRole().name()));
+
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
