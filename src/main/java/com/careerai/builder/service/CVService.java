@@ -77,7 +77,7 @@ public class CVService {
 
             CV enrichedCv = saveExtractedIntelligence(
                     savedCv.getId(),
-                    analysis.getParsedContent(),
+                    analysis.getReview(),
                     analysis.getSummary(),
                     toExtractionResults(analysis.getSkills()));
 
@@ -85,7 +85,7 @@ public class CVService {
                     .id(enrichedCv.getId())
                     .fileName(enrichedCv.getFileName())
                     .fileUrl(enrichedCv.getFileUrl())
-                    .parsedContent(enrichedCv.getParsedContent())
+                    .review(enrichedCv.getReview())
                     .build();
         } catch (IOException e) {
             throw new RuntimeException("Could not store the file. Error: " + e.getMessage());
@@ -118,11 +118,11 @@ public class CVService {
     }
 
     @Transactional
-    public CV saveExtractedIntelligence(UUID cvId, String parsedContent, String summary, List<ExtractionResult> extractedSkills) {
+    public CV saveExtractedIntelligence(UUID cvId, String review, String summary, List<ExtractionResult> extractedSkills) {
         CV cv = cvRepository.findById(cvId)
                 .orElseThrow(() -> new IllegalArgumentException("CV not found with ID: " + cvId));
 
-        cv.setParsedContent(parsedContent);
+        cv.setReview(review);
         cv.setSummary(summary);
         cvSkillRepository.deleteByCv(cv);
 
@@ -189,7 +189,7 @@ public class CVService {
                     List<ExtractionResult> fallbackSkills = inferSkills(extractedText);
                     return CvAnalysisResult.builder()
                             .summary(buildSummary(fallbackSkills))
-                            .parsedContent(buildParsedContent(fallbackSkills))
+                            .review(buildReview(fallbackSkills))
                             .skills(toSkillSignals(fallbackSkills))
                             .build();
                 });
@@ -199,8 +199,8 @@ public class CVService {
         return result != null
                 && result.getSummary() != null
                 && !result.getSummary().isBlank()
-                && result.getParsedContent() != null
-                && !result.getParsedContent().isBlank()
+                && result.getReview() != null
+                && !result.getReview().isBlank()
                 && result.getSkills() != null
                 && !result.getSkills().isEmpty();
     }
@@ -250,8 +250,10 @@ public class CVService {
         return signals;
     }
 
-    private String buildParsedContent(List<ExtractionResult> inferredSkills) {
-        StringBuilder builder = new StringBuilder("Detected strengths:\n");
+    private String buildReview(List<ExtractionResult> inferredSkills) {
+        StringBuilder builder = new StringBuilder("### CV Analysis (Heuristic Fallback)\n\n");
+        builder.append("Based on the keyword extraction, here are some initial thoughts on your profile:\n\n");
+        builder.append("**Key Strengths Detected:**\n");
         for (ExtractionResult skill : inferredSkills) {
             builder.append("- ")
                     .append(skill.getSkillName())
@@ -259,7 +261,12 @@ public class CVService {
                     .append(skill.getCategory())
                     .append(")\n");
         }
-        builder.append("\nParsing mode: heuristic fallback based on searchable text patterns. Replace with full PDF/AI parsing in the next iteration.");
+        builder.append("\n**Improvement Tips:**\n");
+        builder.append("1. **Quantify Achievements**: Ensure you use numbers (%, $, time) to describe your impact.\n");
+        builder.append("2. **Visual Hierarchy**: Consider using a cleaner layout to highlight your most relevant skills first.\n");
+        builder.append("3. **Tailoring**: Customize your summary to match the specific role you are targeting.\n");
+        
+        builder.append("\n\n*Note: This is a heuristic fallback review. For a high-fidelity AI critique, please ensure the system is properly configured.*");
         return builder.toString().trim();
     }
 

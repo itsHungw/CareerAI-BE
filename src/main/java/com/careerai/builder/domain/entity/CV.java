@@ -34,7 +34,7 @@ public class CV {
     private String rawText; // The full text extracted from PDF
 
     @Column(columnDefinition = "TEXT")
-    private String parsedContent; // JSON or structured summary from AI
+    private String review; // AI-generated professional critique and suggestions
 
     @Column(columnDefinition = "TEXT")
     private String summary; // 1-2 paragraph professional overview

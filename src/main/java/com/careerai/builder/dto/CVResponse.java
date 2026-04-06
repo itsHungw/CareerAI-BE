@@ -17,5 +17,5 @@ public class CVResponse {
     private UUID id;
     private String fileName;
     private String fileUrl;
-    private String parsedContent;
+    private String review;
 }

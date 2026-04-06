@@ -46,7 +46,7 @@ public class AiDebugController {
                         .build())
                 .orElseGet(() -> CvAnalysisResult.builder()
                         .summary("AI provider did not return a result")
-                        .parsedContent("No AI output")
+                        .review("No AI output")
                         .skills(java.util.List.of())
                         .build());
 
@@ -55,7 +55,7 @@ public class AiDebugController {
                 .aiUsed(result.getSkills() != null && !result.getSkills().isEmpty())
                 .provider(status.getPrimaryProvider())
                 .summary(result.getSummary())
-                .parsedContent(result.getParsedContent())
+                .review(result.getReview())
                 .skillCount(result.getSkills() == null ? 0 : result.getSkills().size())
                 .build();
 

@@ -15,6 +15,6 @@ public class AiTestResponse {
     private boolean aiUsed;
     private String provider;
     private String summary;
-    private String parsedContent;
+    private String review;
     private int skillCount;
 }

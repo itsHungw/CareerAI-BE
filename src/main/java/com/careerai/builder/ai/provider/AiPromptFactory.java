@@ -23,7 +23,7 @@ public class AiPromptFactory {
                 ## Output JSON Shape
                 {
                   "summary": "string — 2 to 4 sentence professional summary highlighting the candidate's level, domain, and most notable strengths",
-                  "parsedContent": "string — structured prose (markdown-safe) describing work history, education, and key accomplishments",
+                  "review": "string — A professional critique of the CV (markdown-safe). Mention layout, clarity, overall impact, and 3 specific improvement tips.",
                   "skills": [
                     {
                       "skillName": "string — canonical skill name (e.g. 'Spring Boot', not 'SpringBoot' or 'spring')",

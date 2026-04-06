@@ -6,6 +6,7 @@ import com.careerai.builder.ai.model.CvSkillSignal;
 import com.careerai.builder.ai.model.RoadmapGenerationRequest;
 import com.careerai.builder.ai.model.RoadmapGenerationResult;
 import com.careerai.builder.ai.model.RoadmapStepSuggestion;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Component
+@Slf4j
 public class MockAiProvider implements AiProvider {
 
     private static final Map<String, CvSkillSignal> SKILL_LEXICON = buildSkillLexicon();
@@ -44,17 +46,11 @@ public class MockAiProvider implements AiProvider {
             signals.add(CvSkillSignal.builder().skillName("Communication").category("Soft Skill").confidenceScore(0.45d).yearsOfExperience(1).build());
             signals.add(CvSkillSignal.builder().skillName("Problem Solving").category("Soft Skill").confidenceScore(0.45d).yearsOfExperience(1).build());
         }
-
-        String parsedContent = "Detected strengths:\n" + signals.stream()
-                .map(skill -> "- " + skill.getSkillName() + " (" + skill.getCategory() + ")")
-                .reduce((left, right) -> left + "\n" + right)
-                .orElse("- Foundational professional signals");
-
-        String summary = "Mock AI analysis extracted a baseline professional profile from the uploaded CV text. Replace the provider with OpenAI or Gemini when API keys are available.";
+        log.info("Mock AI: Analyzing CV for '{}'", request.getFileName());
 
         return Optional.of(CvAnalysisResult.builder()
-                .summary(summary)
-                .parsedContent(parsedContent)
+                .summary("Mock CV summary for " + request.getFileName() + ". AI identified several foundational professional skills.")
+                .review("### Mock Review & Critique\n\nBased on a simulated analysis of your CV, here is some feedback:\n\n**Strengths:**\n- Good mix of technical and soft skills.\n- Clear document naming convention.\n\n**Areas for Improvement:**\n- Consider a more technical deep-dive in your project descriptions.\n- Ensure each skill has a corresponding impact metric.\n\n**Action Items:**\n1. Add specific numbers to your achievements.\n2. Verify the consistency of your formatting across sections.")
                 .skills(signals)
                 .build());
     }

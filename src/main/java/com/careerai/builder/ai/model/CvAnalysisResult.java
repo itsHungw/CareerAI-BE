@@ -16,7 +16,7 @@ import java.util.List;
 @AllArgsConstructor
 public class CvAnalysisResult {
     private String summary;
-    private String parsedContent;
+    private String review;
 
     @Builder.Default
     private List<CvSkillSignal> skills = new ArrayList<>();
