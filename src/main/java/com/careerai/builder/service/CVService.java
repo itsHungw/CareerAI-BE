@@ -1,5 +1,9 @@
 package com.careerai.builder.service;
 
+import com.careerai.builder.ai.AiOrchestratorService;
+import com.careerai.builder.ai.model.CvAnalysisRequest;
+import com.careerai.builder.ai.model.CvAnalysisResult;
+import com.careerai.builder.ai.model.CvSkillSignal;
 import com.careerai.builder.domain.entity.CV;
 import com.careerai.builder.domain.entity.CVSkill;
 import com.careerai.builder.domain.entity.Skill;
@@ -35,6 +39,7 @@ public class CVService {
 
     private static final Map<String, SkillTemplate> SKILL_LEXICON = buildSkillLexicon();
 
+    private final AiOrchestratorService aiOrchestratorService;
     private final CVRepository cvRepository;
     private final CVSkillRepository cvSkillRepository;
     private final SkillService skillService;
@@ -64,11 +69,13 @@ public class CVService {
                     .build();
 
             CV savedCv = cvRepository.save(cv);
-            List<ExtractionResult> inferredSkills = inferSkills(extractedText);
-            String parsedContent = buildParsedContent(inferredSkills);
-            String summary = buildSummary(inferredSkills);
+            CvAnalysisResult analysis = analyzeCvWithFallback(originalFileName, extractedText);
 
-            CV enrichedCv = saveExtractedIntelligence(savedCv.getId(), parsedContent, summary, inferredSkills);
+            CV enrichedCv = saveExtractedIntelligence(
+                    savedCv.getId(),
+                    analysis.getParsedContent(),
+                    analysis.getSummary(),
+                    toExtractionResults(analysis.getSkills()));
 
             return CVResponse.builder()
                     .id(enrichedCv.getId())
@@ -143,6 +150,32 @@ public class CVService {
                 "heuristic-preview:", normalizedPreview);
     }
 
+    private CvAnalysisResult analyzeCvWithFallback(String originalFileName, String extractedText) {
+        return aiOrchestratorService.analyzeCv(CvAnalysisRequest.builder()
+                        .fileName(originalFileName)
+                        .rawText(extractedText)
+                        .build())
+                .filter(this::hasUsableAnalysis)
+                .orElseGet(() -> {
+                    List<ExtractionResult> fallbackSkills = inferSkills(extractedText);
+                    return CvAnalysisResult.builder()
+                            .summary(buildSummary(fallbackSkills))
+                            .parsedContent(buildParsedContent(fallbackSkills))
+                            .skills(toSkillSignals(fallbackSkills))
+                            .build();
+                });
+    }
+
+    private boolean hasUsableAnalysis(CvAnalysisResult result) {
+        return result != null
+                && result.getSummary() != null
+                && !result.getSummary().isBlank()
+                && result.getParsedContent() != null
+                && !result.getParsedContent().isBlank()
+                && result.getSkills() != null
+                && !result.getSkills().isEmpty();
+    }
+
     private List<ExtractionResult> inferSkills(String extractedText) {
         String normalizedText = extractedText.toLowerCase();
         List<ExtractionResult> results = new ArrayList<>();
@@ -161,6 +194,31 @@ public class CVService {
         }
 
         return results;
+    }
+
+    private List<ExtractionResult> toExtractionResults(List<CvSkillSignal> skills) {
+        List<ExtractionResult> results = new ArrayList<>();
+        for (CvSkillSignal skill : skills) {
+            results.add(new ExtractionResult(
+                    skill.getSkillName(),
+                    skill.getCategory() == null || skill.getCategory().isBlank() ? "General" : skill.getCategory(),
+                    skill.getConfidenceScore() == null ? 0.5d : skill.getConfidenceScore(),
+                    skill.getYearsOfExperience() == null ? 1 : skill.getYearsOfExperience()));
+        }
+        return results;
+    }
+
+    private List<CvSkillSignal> toSkillSignals(List<ExtractionResult> extractedSkills) {
+        List<CvSkillSignal> signals = new ArrayList<>();
+        for (ExtractionResult extract : extractedSkills) {
+            signals.add(CvSkillSignal.builder()
+                    .skillName(extract.getSkillName())
+                    .category(extract.getCategory())
+                    .confidenceScore(extract.getConfidenceScore())
+                    .yearsOfExperience(extract.getYearsOfExperience())
+                    .build());
+        }
+        return signals;
     }
 
     private String buildParsedContent(List<ExtractionResult> inferredSkills) {

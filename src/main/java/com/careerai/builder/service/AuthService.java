@@ -163,8 +163,6 @@ public class AuthService {
     }
 
     private RefreshToken createRefreshToken(User user) {
-        // Support multiple sessions: Allow new refresh tokens without deleting old ones.
-        // Old tokens are managed by expiration only.
         RefreshToken refreshToken = RefreshToken.builder()
                 .user(user)
                 .expiryDate(java.time.Instant.now().plusMillis(refreshExpiration))

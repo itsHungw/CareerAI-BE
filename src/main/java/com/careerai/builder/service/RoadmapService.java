@@ -1,5 +1,9 @@
 package com.careerai.builder.service;
 
+import com.careerai.builder.ai.AiOrchestratorService;
+import com.careerai.builder.ai.model.RoadmapGenerationRequest;
+import com.careerai.builder.ai.model.RoadmapGenerationResult;
+import com.careerai.builder.ai.model.RoadmapStepSuggestion;
 import com.careerai.builder.domain.entity.CV;
 import com.careerai.builder.domain.entity.CVSkill;
 import com.careerai.builder.domain.entity.Roadmap;
@@ -29,6 +33,7 @@ import java.util.UUID;
 @Slf4j
 public class RoadmapService {
 
+    private final AiOrchestratorService aiOrchestratorService;
     private final RoadmapRepository roadmapRepository;
     private final RoadmapStepRepository roadmapStepRepository;
     private final CVRepository cvRepository;
@@ -176,7 +181,41 @@ public class RoadmapService {
             steps.get(0).setDescription(steps.get(0).getDescription() + " CV summary reference: " + latestCv.getSummary());
         }
 
-        return new RoadmapPlan(targetTitle, steps);
+        RoadmapPlan deterministicPlan = new RoadmapPlan(targetTitle, steps);
+
+        return aiOrchestratorService.generateRoadmap(RoadmapGenerationRequest.builder()
+                        .targetTitle(targetTitle)
+                        .cvSummary(latestCv.getSummary() == null ? "" : latestCv.getSummary())
+                        .currentSkills(new ArrayList<>(currentSkills))
+                        .missingSkills(missingSkills)
+                        .build())
+                .filter(this::hasUsableAiRoadmap)
+                .map(this::toRoadmapPlan)
+                .orElse(deterministicPlan);
+    }
+
+    private boolean hasUsableAiRoadmap(RoadmapGenerationResult result) {
+        return result != null
+                && result.getTargetTitle() != null
+                && !result.getTargetTitle().isBlank()
+                && result.getSteps() != null
+                && !result.getSteps().isEmpty();
+    }
+
+    private RoadmapPlan toRoadmapPlan(RoadmapGenerationResult result) {
+        List<StepDefinition> steps = result.getSteps().stream()
+                .map(this::toStepDefinition)
+                .toList();
+        return new RoadmapPlan(result.getTargetTitle(), steps);
+    }
+
+    private StepDefinition toStepDefinition(RoadmapStepSuggestion suggestion) {
+        List<String> resources = suggestion.getResources() == null ? List.of() : suggestion.getResources();
+        return new StepDefinition(
+                suggestion.getTitle(),
+                suggestion.getDescription(),
+                resourcesJson(resources.toArray(String[]::new)),
+                suggestion.getDurationDays() == null ? 7 : suggestion.getDurationDays());
     }
 
     private String resolveTargetTitle(String requestedTargetTitle, Set<String> currentSkills) {
