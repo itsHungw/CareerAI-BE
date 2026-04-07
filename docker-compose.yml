@@ -1,0 +1,16 @@
+services:
+  postgres-pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: careerai-db-vector
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=careerai_vector_db
+    ports:
+      - "5433:5432" # Chạy ở port 5433 để không xung đột với Postgres gốc trên Windows của anh
+    volumes:
+      - pgvector-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  pgvector-data:
