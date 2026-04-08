@@ -5,6 +5,8 @@ import com.careerai.builder.domain.entity.RoadmapStep;
 import com.careerai.builder.domain.entity.User;
 import com.careerai.builder.dto.ApiResponse;
 import com.careerai.builder.dto.GenerateRoadmapRequest;
+import com.careerai.builder.dto.RoadmapResponse;
+import com.careerai.builder.dto.RoadmapStepResponse;
 import com.careerai.builder.exception.ApiException;
 import com.careerai.builder.repository.UserRepository;
 import jakarta.validation.Valid;
@@ -28,9 +30,9 @@ public class RoadmapController {
     private final UserRepository userRepository;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Roadmap>>> getMyRoadmaps() {
+    public ResponseEntity<ApiResponse<List<RoadmapResponse>>> getMyRoadmaps() {
         User user = getCurrentUser();
-        return ResponseEntity.ok(ApiResponse.success("Roadmaps retrieved successfully", roadmapService.getUserRoadmaps(user)));
+        return ResponseEntity.ok(ApiResponse.success("Roadmaps retrieved successfully", roadmapService.getUserRoadmaps(user).getRoadmaps()));
     }
 
     @PostMapping("/generate")
@@ -42,8 +44,8 @@ public class RoadmapController {
     }
 
     @GetMapping("/{id}/steps")
-    public ResponseEntity<ApiResponse<List<RoadmapStep>>> getRoadmapSteps(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.success("Steps retrieved successfully", roadmapService.getRoadmapSteps(id)));
+    public ResponseEntity<ApiResponse<List<RoadmapStepResponse>>> getRoadmapSteps(@PathVariable UUID id) {
+        return ResponseEntity.ok(ApiResponse.success("Steps retrieved successfully", roadmapService.getRoadmapSteps(id).getSteps()));
     }
 
     @PatchMapping("/steps/{stepId}/status")

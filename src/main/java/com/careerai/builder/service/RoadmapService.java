@@ -9,6 +9,10 @@ import com.careerai.builder.domain.entity.CVSkill;
 import com.careerai.builder.domain.entity.Roadmap;
 import com.careerai.builder.domain.entity.RoadmapStep;
 import com.careerai.builder.domain.entity.User;
+import com.careerai.builder.dto.RoadmapResponse;
+import com.careerai.builder.dto.RoadmapStepResponse;
+import com.careerai.builder.dto.RoadmapListDTO;
+import com.careerai.builder.dto.RoadmapStepListDTO;
 import com.careerai.builder.exception.ApiException;
 import com.careerai.builder.repository.CVRepository;
 import com.careerai.builder.repository.CVSkillRepository;
@@ -97,7 +101,7 @@ public class RoadmapService {
     }
 
     @Transactional
-    @CacheEvict(value = "userRoadmaps", key = "#user.id")
+    @CacheEvict(value = "userRoadmapsJSON", key = "#user.id")
     public Roadmap generateRoadmapFromLatestCv(User user, String requestedTargetTitle) {
         CV latestCv = cvRepository.findByUserOrderByCreatedAtDesc(user).stream()
                 .findFirst()
@@ -109,17 +113,19 @@ public class RoadmapService {
     }
 
     @Transactional(readOnly = true)
-    @Cacheable(value = "userRoadmaps", key = "#user.id")
-    public List<Roadmap> getUserRoadmaps(User user) {
-        return roadmapRepository.findByUserOrderByCreatedAtDesc(user);
+    @Cacheable(value = "userRoadmapsJSON", key = "#user.id")
+    public RoadmapListDTO getUserRoadmaps(User user) {
+        List<Roadmap> roadmaps = roadmapRepository.findByUserOrderByCreatedAtDesc(user);
+        return new RoadmapListDTO(roadmaps.stream().map(this::toRoadmapResponse).toList());
     }
 
     @Transactional(readOnly = true)
-    @Cacheable(value = "roadmapSteps", key = "#roadmapId")
-    public List<RoadmapStep> getRoadmapSteps(UUID roadmapId) {
+    @Cacheable(value = "roadmapStepsJSON", key = "#roadmapId")
+    public RoadmapStepListDTO getRoadmapSteps(UUID roadmapId) {
         Roadmap roadmap = roadmapRepository.findById(roadmapId)
                 .orElseThrow(() -> new IllegalArgumentException("Roadmap not found"));
-        return roadmapStepRepository.findByRoadmapOrderByOrderIndexAsc(roadmap);
+        List<RoadmapStep> steps = roadmapStepRepository.findByRoadmapOrderByOrderIndexAsc(roadmap);
+        return new RoadmapStepListDTO(steps.stream().map(this::toStepResponse).toList());
     }
 
     @Transactional
@@ -140,7 +146,7 @@ public class RoadmapService {
      * Private method to invalidate roadmap steps cache
      * Called after a step status is updated
      */
-    @CacheEvict(value = "roadmapSteps", key = "#roadmapId")
+    @CacheEvict(value = "roadmapStepsJSON", key = "#roadmapId")
     private void invalidateRoadmapStepsCache(UUID roadmapId) {
         log.debug("Invalidating roadmap steps cache for roadmap: {}", roadmapId);
     }
@@ -320,5 +326,26 @@ public class RoadmapService {
             // Fallback: return empty JSON array
             return "[]";
         }
+    }
+
+    private RoadmapResponse toRoadmapResponse(Roadmap roadmap) {
+        return RoadmapResponse.builder()
+                .id(roadmap.getId())
+                .targetTitle(roadmap.getTargetTitle())
+                .status(roadmap.getStatus())
+                .createdAt(roadmap.getCreatedAt())
+                .build();
+    }
+
+    private RoadmapStepResponse toStepResponse(RoadmapStep step) {
+        return RoadmapStepResponse.builder()
+                .id(step.getId())
+                .title(step.getTitle())
+                .description(step.getDescription())
+                .resources(step.getResources())
+                .orderIndex(step.getOrderIndex())
+                .durationDays(step.getDurationDays())
+                .status(step.getStatus())
+                .build();
     }
 }
