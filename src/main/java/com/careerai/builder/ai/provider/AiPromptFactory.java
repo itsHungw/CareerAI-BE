@@ -23,7 +23,7 @@ public class AiPromptFactory {
                 ## Output JSON Shape
                 {
                   "summary": "string — 2 to 4 sentence professional summary highlighting the candidate's level, domain, and most notable strengths",
-                  "review": "string — A professional critique of the CV (markdown-safe). Mention layout, clarity, overall impact, and 3 specific improvement tips.",
+                  "review": "string — A professional critique of the CV in MARKDOWN format with section headers. MUST follow this exact structure:\n## Strengths\n[2-3 sentences about CV strengths and well-presented sections]\n\n## Improvement Areas\n[2-3 key improvements as numbered list (1. 2. 3.)]\n\n## Overall Assessment\n[Final thoughts on career readiness for target roles]",
                   "skills": [
                     {
                       "skillName": "string — canonical skill name (e.g. 'Spring Boot', not 'SpringBoot' or 'spring')",
@@ -46,6 +46,7 @@ public class AiPromptFactory {
                 - If the CV text is too short or garbled to extract meaningful data, return a valid JSON with
                   an honest summary and an empty skills array — do not fabricate information.
                 - Keep skills list deduplicated and ordered by confidenceScore descending.
+                - CRITICAL: The "review" field MUST contain markdown section headers (##) exactly as shown in the example. Do not skip this structure.
                 """;
     }
 
@@ -64,7 +65,12 @@ public class AiPromptFactory {
                 - Infer seniority level from years of experience and role titles.
                 - If the same skill appears in multiple contexts, aggregate them into one entry
                   with the highest confidence and total years.
-                - Return only the JSON object — no markdown, no commentary.
+                - CRITICAL FORMATTING: The review field MUST be formatted as markdown with these exact section headers:
+                  - Start with: ## Strengths
+                  - Then: ## Improvement Areas
+                  - End with: ## Overall Assessment
+                  Each section should have 2-3 sentences or a numbered list.
+                - Return only the JSON object — no markdown code fences, no commentary.
                 """.formatted(request.getFileName(), request.getRawText());
     }
 
