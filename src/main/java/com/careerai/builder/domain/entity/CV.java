@@ -1,5 +1,7 @@
 package com.careerai.builder.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -14,12 +16,14 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class CV {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
@@ -31,13 +35,13 @@ public class CV {
     private String fileUrl;
 
     @Column(columnDefinition = "TEXT")
-    private String rawText; // The full text extracted from PDF
+    private String rawText;
 
     @Column(columnDefinition = "TEXT")
-    private String review; // AI-generated professional critique and suggestions
+    private String review;
 
     @Column(columnDefinition = "TEXT")
-    private String summary; // 1-2 paragraph professional overview
+    private String summary;
 
     @CreationTimestamp
     @Column(updatable = false)

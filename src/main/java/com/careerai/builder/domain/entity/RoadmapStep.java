@@ -1,5 +1,7 @@
 package com.careerai.builder.domain.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -12,12 +14,14 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class RoadmapStep {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "roadmap_id", nullable = false)
     private Roadmap roadmap;
@@ -29,11 +33,11 @@ public class RoadmapStep {
     private String description;
 
     @Column(columnDefinition = "TEXT")
-    private String resources; // JSON serialized list of learning resources
+    private String resources;
 
     private Integer orderIndex;
 
-    private Integer durationDays; // Estimated time to complete in days
+    private Integer durationDays;
 
     @Enumerated(EnumType.STRING)
     private StepStatus status;
