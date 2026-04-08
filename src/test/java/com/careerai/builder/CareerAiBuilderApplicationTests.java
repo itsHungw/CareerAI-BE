@@ -2,6 +2,8 @@ package com.careerai.builder;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.ai.vectorstore.VectorStore;
 
 @SpringBootTest(properties = {
 		"jwt.secret=test-jwt-secret-key-32-bytes-minimum",
@@ -14,6 +16,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 				+ "org.springframework.ai.autoconfigure.vectorstore.pgvector.PgVectorStoreAutoConfiguration"
 })
 class CareerAiBuilderApplicationTests {
+
+	@MockBean
+	private VectorStore vectorStore;
 
 	@Test
 	void contextLoads() {
