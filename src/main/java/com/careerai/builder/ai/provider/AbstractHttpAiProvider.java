@@ -2,6 +2,7 @@ package com.careerai.builder.ai.provider;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -14,6 +15,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 
+@Slf4j
 public abstract class AbstractHttpAiProvider {
 
     private final ObjectMapper objectMapper;
@@ -61,5 +63,27 @@ public abstract class AbstractHttpAiProvider {
 
     protected JsonNode getObjectMapperTree(Object value) {
         return objectMapper.valueToTree(value);
+    }
+
+    /**
+     * Validates if a CV review contains expected markdown section structure
+     * Logs warning if format is not followed
+     */
+    protected void validateCvReviewFormat(String review) {
+        if (review == null || review.isBlank()) {
+            log.warn("⚠️ CV review is empty");
+            return;
+        }
+
+        boolean hasStrengths = review.contains("## Strengths") || review.contains("##Strengths");
+        boolean hasImprovements = review.contains("## Improvement") || review.contains("##Improvement");
+        boolean hasAssessment = review.contains("## Overall") || review.contains("##Overall") || review.contains("## Assessment") || review.contains("##Assessment");
+
+        if (!hasStrengths || !hasImprovements) {
+            log.warn("⚠️ CV review missing markdown sections: Strengths={}, Improvements={}, Assessment={}",
+                    hasStrengths, hasImprovements, hasAssessment);
+        } else {
+            log.debug("✓ CV review has proper markdown structure with sections");
+        }
     }
 }

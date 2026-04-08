@@ -12,28 +12,19 @@ import org.springframework.stereotype.Component;
 public class AiProperties {
 
     private boolean enabled = false;
-    private String provider = "openai";
+    private String provider = "fpt";
     private String fallbackProvider = "none";
     private int timeoutSeconds = 60;
 
-    private OpenAiProperties openai = new OpenAiProperties();
-    private GeminiProperties gemini = new GeminiProperties();
+    private FptProperties fpt = new FptProperties();
 
     @Getter
     @Setter
-    public static class OpenAiProperties {
+    public static class FptProperties {
         private String apiKey = "";
-        private String baseUrl = "https://api.openai.com/v1";
-        private String model = "gpt-5-mini";
-        private double temperature = 0.2d;
-    }
-
-    @Getter
-    @Setter
-    public static class GeminiProperties {
-        private String apiKey = "";
-        private String baseUrl = "https://generativelanguage.googleapis.com/v1beta";
-        private String model = "gemini-2.5-flash";
+        private String baseUrl = "https://mkp-api.fptcloud.com";
+        private String model = "Qwen2.5-7B-instruct";
+        private String embeddingModel = "Vietnamese_Embedding";
         private double temperature = 0.2d;
     }
 }
