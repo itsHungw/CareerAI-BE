@@ -155,33 +155,36 @@ public class RoadmapService {
                 : missingSkills.stream().limit(3).toList();
 
         for (String missingSkill : prioritizedMissingSkills) {
+            String[] skillResources = generateSkillResources(missingSkill);
             steps.add(new StepDefinition(
-                    "Close the gap in " + missingSkill,
-                    "Create a focused learning sprint around " + missingSkill + ", connect it to your target role, and capture proof of learning in code samples, notes, or shipped features.",
-                    resourcesJson("Official documentation for " + missingSkill, "One guided project", "One retrospective note"),
+                    "Master " + missingSkill,
+                    "Create a focused learning sprint around " + missingSkill + ". Study core concepts, build a hands-on project, and document your learning. Connect it directly to the " + targetTitle + " role requirements.",
+                    resourcesJson(skillResources),
                     10));
         }
 
         steps.add(new StepDefinition(
-                "Build one portfolio proof",
-                "Ship a portfolio artifact aligned with the target role. Reuse the strongest skills from your CV and combine them with the newly learned gaps so employers can see progression, not just theory.",
-                resourcesJson("Project brief", "README with metrics", "Demo video or screenshots"),
+                "Build portfolio project",
+                "Ship a portfolio artifact that showcases your target " + targetTitle + " skills. Combine your strongest existing skills with newly learned " +
+                (missingSkills.isEmpty() ? "advanced techniques" : missingSkills.get(0)) +
+                " to demonstrate real capability.",
+                resourcesJson("Project requirements doc", "View on GitHub", "Demo/deployed link", "README with metrics"),
                 14));
 
         steps.add(new StepDefinition(
-                "Prepare interview stories",
-                "Turn your experience into short, structured stories covering ownership, tradeoffs, debugging, and impact. Tie each story back to the target " + targetTitle + " role.",
-                resourcesJson("STAR story bank", "Mock interview", "Role-specific question list"),
+                "Prepare interview storytelling",
+                "Turn your experience into 3-5 structured stories covering technical decisions, problem-solving, and impact. Focus on projects that align with " + targetTitle + " responsibilities.",
+                resourcesJson("STAR method guide", "Record practice interview", "Key achievements list"),
                 5));
 
         steps.add(new StepDefinition(
-                "Apply and iterate weekly",
-                "Start a weekly application loop, track response quality, and update the roadmap based on rejection patterns, skill gaps, and interview feedback.",
-                resourcesJson("Application tracker", "Weekly review", "CV refresh checkpoint"),
+                "Execute job search",
+                "Launch your application campaign targeting " + targetTitle + " roles. Apply to 2-3 companies weekly, track feedback, and refine your messaging based on patterns.",
+                resourcesJson("Target company list", "Weekly application log", "Offer negotiation checklist"),
                 7));
 
         if (latestCv.getSummary() != null && !latestCv.getSummary().isBlank()) {
-            steps.get(0).setDescription(steps.get(0).getDescription() + " CV summary reference: " + latestCv.getSummary());
+            steps.get(0).setDescription(steps.get(0).getDescription() + "\n\nProfile Snapshot: " + latestCv.getSummary());
         }
 
         RoadmapPlan deterministicPlan = new RoadmapPlan(targetTitle, steps);
@@ -194,7 +197,37 @@ public class RoadmapService {
                         .build())
                 .filter(this::hasUsableAiRoadmap)
                 .map(this::toRoadmapPlan)
-                .orElse(deterministicPlan);
+                .orElseGet(() -> {
+                    log.warn("⚠️ AI roadmap generation returned unusable result or failed. Using personalized fallback plan.");
+                    log.info("✓ Fallback roadmap generated {} steps for target: {}", deterministicPlan.getSteps().size(), targetTitle);
+                    return deterministicPlan;
+                });
+    }
+
+    private String[] generateSkillResources(String skill) {
+        String lowerSkill = skill.toLowerCase();
+
+        if (lowerSkill.contains("react")) {
+            return new String[]{"React official docs", "Build interactive components", "React Hooks deep dive", "component library project"};
+        } else if (lowerSkill.contains("typescript")) {
+            return new String[]{"TypeScript handbook", "Type exercises", "Real-world typing", "TS strict mode setup"};
+        } else if (lowerSkill.contains("node") || lowerSkill.contains("express")) {
+            return new String[]{"Node.js guide", "Build REST API", "Middleware & middleware", "Performance optimization"};
+        } else if (lowerSkill.contains("aws") || lowerSkill.contains("cloud")) {
+            return new String[]{"AWS Free Tier intro", "Deploy a web app", "Security best practices", "Cost optimization"};
+        } else if (lowerSkill.contains("docker") || lowerSkill.contains("container")) {
+            return new String[]{"Docker fundamentals", "Multi-stage builds", "Compose setup", "Kubernetes intro"};
+        } else if (lowerSkill.contains("sql") || lowerSkill.contains("database")) {
+            return new String[]{"SQL query optimization", "Schema design", "Index strategies", "Build sample database"};
+        } else if (lowerSkill.contains("java") || lowerSkill.contains("spring")) {
+            return new String[]{"Spring Boot guide", "Build microservice", "Dependency injection", "Testing patterns"};
+        } else if (lowerSkill.contains("python")) {
+            return new String[]{"Python fundamentals", "Build CLI tool", "Package structure", "Testing with pytest"};
+        } else if (lowerSkill.contains("git") || lowerSkill.contains("devops")) {
+            return new String[]{"Git workflow", "CI/CD pipeline", "Code review process", "Release management"};
+        } else {
+            return new String[]{"Official documentation", "Build practical project", "Real-world examples", "Contribute to open source"};
+        }
     }
 
     private boolean hasUsableAiRoadmap(RoadmapGenerationResult result) {

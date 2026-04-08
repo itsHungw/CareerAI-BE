@@ -36,8 +36,8 @@ public class JobService {
 
         return allJobs.stream()
                 .map(job -> {
-                    List<JobRequirement> requirements = jobRequirementRepository.findByJob(job);
-                    
+                    List<JobRequirement> requirements = jobRequirementRepository.findByJobWithSkills(job);
+
                     long mandatoryCount = requirements.stream().filter(JobRequirement::getIsMandatory).count();
                     long matchCount = requirements.stream()
                             .filter(req -> userSkillMap.containsKey(req.getSkill().getName().toLowerCase()))

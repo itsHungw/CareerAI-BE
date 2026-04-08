@@ -186,7 +186,9 @@ public class CVService {
                         .build())
                 .filter(this::hasUsableAnalysis)
                 .orElseGet(() -> {
+                    log.warn("⚠️ AI CV analysis returned unusable result or failed. Falling back to keyword-based analysis.");
                     List<ExtractionResult> fallbackSkills = inferSkills(extractedText);
+                    log.info("✓ Fallback CV analysis generated {} skills", fallbackSkills.size());
                     return CvAnalysisResult.builder()
                             .summary(buildSummary(fallbackSkills))
                             .review(buildReview(fallbackSkills))
@@ -251,22 +253,68 @@ public class CVService {
     }
 
     private String buildReview(List<ExtractionResult> inferredSkills) {
-        StringBuilder builder = new StringBuilder("### CV Analysis (Heuristic Fallback)\n\n");
-        builder.append("Based on the keyword extraction, here are some initial thoughts on your profile:\n\n");
-        builder.append("**Key Strengths Detected:**\n");
-        for (ExtractionResult skill : inferredSkills) {
-            builder.append("- ")
-                    .append(skill.getSkillName())
-                    .append(" (")
-                    .append(skill.getCategory())
-                    .append(")\n");
+        if (inferredSkills.isEmpty()) {
+            return "## 💪 Strengths\n\nNo specific technical skills detected. Consider updating your CV with concrete technical expertise.\n\n" +
+                    "## 🎯 Improvement Areas\n\n1. Add specific technologies and tools you've used\n" +
+                    "2. Include quantifiable results and achievements\n" +
+                    "3. Highlight relevant projects and certifications\n\n" +
+                    "## 💡 Quick Tips\n\n- Be specific with skill names (e.g., 'Java 21' instead of 'programming')\n" +
+                    "- Mention years of experience for each skill\n" +
+                    "- Include both hard and soft skills for a complete profile\n\n" +
+                    "*Note: This is a heuristic analysis. For detailed AI-powered insights, ensure your system is properly configured.*";
         }
-        builder.append("\n**Improvement Tips:**\n");
-        builder.append("1. **Quantify Achievements**: Ensure you use numbers (%, $, time) to describe your impact.\n");
-        builder.append("2. **Visual Hierarchy**: Consider using a cleaner layout to highlight your most relevant skills first.\n");
-        builder.append("3. **Tailoring**: Customize your summary to match the specific role you are targeting.\n");
-        
-        builder.append("\n\n*Note: This is a heuristic fallback review. For a high-fidelity AI critique, please ensure the system is properly configured.*");
+
+        StringBuilder builder = new StringBuilder();
+
+        // Group skills by category
+        Map<String, List<ExtractionResult>> skillsByCategory = inferredSkills.stream()
+                .collect(java.util.stream.Collectors.groupingBy(ExtractionResult::getCategory));
+
+        // Strengths section
+        builder.append("## 💪 Strengths\n\n");
+        builder.append("Your CV highlights a diverse skill set across multiple areas:\n\n");
+        skillsByCategory.forEach((category, skills) -> {
+            builder.append("**").append(category).append(":**\n");
+            skills.forEach(skill -> {
+                builder.append("- ").append(skill.getSkillName());
+                if (skill.getYearsOfExperience() != null && skill.getYearsOfExperience() > 0) {
+                    builder.append(" (~").append(skill.getYearsOfExperience()).append(" years)");
+                }
+                builder.append("\n");
+            });
+            builder.append("\n");
+        });
+
+        // Improvement Areas section
+        builder.append("## 🎯 Improvement Areas\n\n");
+        builder.append("To strengthen your profile:\n\n");
+
+        boolean hasBackend = skillsByCategory.containsKey("Backend");
+        boolean hasFrontend = skillsByCategory.containsKey("Frontend");
+        boolean hasDevOps = skillsByCategory.containsKey("DevOps/Infrastructure");
+        boolean hasData = skillsByCategory.containsKey("Data");
+
+        if (!hasBackend && !hasFrontend) {
+            builder.append("1. **Tech Stack Definition:** Specify backend and/or frontend technologies\n");
+        }
+        if (!hasDevOps) {
+            builder.append("2. **Platform & Deployment Skills:** Add AWS, Docker, Kubernetes, or similar\n");
+        }
+        if (!hasData) {
+            builder.append("3. **Data & Analytics:** Consider including SQL, databases, or analytics tools\n");
+        }
+        builder.append("4. **Project Outcomes:** Quantify your contributions (e.g., 'Improved performance by 30%')\n");
+        builder.append("5. **Soft Skills:** Professional development, leadership, or communication skills\n\n");
+
+        // Quick Tips section
+        builder.append("## 💡 Quick Tips\n\n");
+        builder.append("- **Be Specific:** Use exact tool/library names (not 'databases' → 'PostgreSQL')\n");
+        builder.append("- **Show Impact:** Numbers matter: years, scale, or outcomes\n");
+        builder.append("- **Organized Layout:** Group similar skills together for readability\n");
+        builder.append("- **Tailor to Role:** Highlight skills most relevant to your target job\n\n");
+
+        builder.append("*Tip: This analysis is generated from keyword extraction. Upload a fresh CV or configure AI provider for more comprehensive insights.*");
+
         return builder.toString().trim();
     }
 
