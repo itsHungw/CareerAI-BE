@@ -20,6 +20,16 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    timeout: ${REDIS_TIMEOUT:2000ms}
+    database: 0
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000  # 10 minutes default
 
 server:
   port: 8080

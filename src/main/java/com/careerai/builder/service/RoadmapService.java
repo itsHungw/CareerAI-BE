@@ -18,6 +18,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -95,6 +97,7 @@ public class RoadmapService {
     }
 
     @Transactional
+    @CacheEvict(value = "userRoadmaps", key = "#user.id")
     public Roadmap generateRoadmapFromLatestCv(User user, String requestedTargetTitle) {
         CV latestCv = cvRepository.findByUserOrderByCreatedAtDesc(user).stream()
                 .findFirst()
@@ -106,11 +109,13 @@ public class RoadmapService {
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "userRoadmaps", key = "#user.id")
     public List<Roadmap> getUserRoadmaps(User user) {
         return roadmapRepository.findByUserOrderByCreatedAtDesc(user);
     }
 
     @Transactional(readOnly = true)
+    @Cacheable(value = "roadmapSteps", key = "#roadmapId")
     public List<RoadmapStep> getRoadmapSteps(UUID roadmapId) {
         Roadmap roadmap = roadmapRepository.findById(roadmapId)
                 .orElseThrow(() -> new IllegalArgumentException("Roadmap not found"));
@@ -121,8 +126,23 @@ public class RoadmapService {
     public RoadmapStep updateStepStatus(UUID stepId, RoadmapStep.StepStatus newStatus) {
         RoadmapStep step = roadmapStepRepository.findById(stepId)
                 .orElseThrow(() -> new IllegalArgumentException("Step not found"));
+
+        UUID roadmapId = step.getRoadmap().getId();  // Extract roadmapId for cache invalidation
         step.setStatus(newStatus);
-        return roadmapStepRepository.save(step);
+
+        RoadmapStep saved = roadmapStepRepository.save(step);
+        invalidateRoadmapStepsCache(roadmapId);  // Invalidate cache after save
+
+        return saved;
+    }
+
+    /**
+     * Private method to invalidate roadmap steps cache
+     * Called after a step status is updated
+     */
+    @CacheEvict(value = "roadmapSteps", key = "#roadmapId")
+    private void invalidateRoadmapStepsCache(UUID roadmapId) {
+        log.debug("Invalidating roadmap steps cache for roadmap: {}", roadmapId);
     }
 
     private void archiveActiveRoadmaps(User user) {

@@ -43,6 +43,15 @@ public class CV {
     @Column(columnDefinition = "TEXT")
     private String summary;
 
+    @Column(name = "file_hash", length = 64)
+    private String fileHash;  // SHA-256 hash for duplicate detection
+
+    @Column(name = "file_size")
+    private Long fileSize;
+
+    @Column(name = "last_analyzed_at")
+    private LocalDateTime lastAnalyzedAt;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

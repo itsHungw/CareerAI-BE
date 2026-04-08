@@ -12,5 +12,23 @@ services:
       - pgvector-data:/var/lib/postgresql/data
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    container_name: careerai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly ${REDIS_APPENDONLY:-no}
+    environment:
+      - REDIS_APPENDONLY=${REDIS_APPENDONLY:-no}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
 volumes:
   pgvector-data:
+  redis-data:

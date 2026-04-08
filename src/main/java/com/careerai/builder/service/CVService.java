@@ -17,6 +17,8 @@ import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Service;
@@ -30,10 +32,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -51,11 +57,32 @@ public class CVService {
     @Value("${app.upload-dir}")
     private String uploadDir;
 
+    @CacheEvict(value = {"userLatestCv", "cvSkills", "userRoadmaps"}, key = "#user.id")
     public CVResponse uploadAndParseCV(MultipartFile file, User user) {
         try {
             Path root = Paths.get(uploadDir);
             if (!Files.exists(root)) {
                 Files.createDirectories(root);
+            }
+
+            // Calculate file hash for duplicate detection
+            String fileHash = calculateFileHash(file.getBytes());
+
+            // Check if same file was already analyzed
+            Optional<CV> existingCv = cvRepository.findByUserOrderByCreatedAtDesc(user)
+                    .stream()
+                    .filter(cv -> fileHash.equals(cv.getFileHash()))
+                    .findFirst();
+
+            if (existingCv.isPresent()) {
+                log.info("📁 Same file detected (hash={}). Returning cached review without AI re-analysis", fileHash.substring(0, 8));
+                CV cached = existingCv.get();
+                return CVResponse.builder()
+                        .id(cached.getId())
+                        .fileName(cached.getFileName())
+                        .fileUrl(cached.getFileUrl())
+                        .review(cached.getReview())
+                        .build();
             }
 
             String originalFileName = file.getOriginalFilename() == null ? "resume.pdf" : file.getOriginalFilename();
@@ -70,6 +97,9 @@ public class CVService {
                     .fileName(uniqueFileName)
                     .fileUrl("/api/cv/download/" + uniqueFileName)
                     .rawText(extractedText)
+                    .fileHash(fileHash)          // Store hash
+                    .fileSize(file.getSize())    // Store size
+                    .lastAnalyzedAt(LocalDateTime.now())
                     .build();
 
             CV savedCv = cvRepository.save(cv);
@@ -87,7 +117,7 @@ public class CVService {
                     .fileUrl(enrichedCv.getFileUrl())
                     .review(enrichedCv.getReview())
                     .build();
-        } catch (IOException e) {
+        } catch (IOException | NoSuchAlgorithmException e) {
             throw new RuntimeException("Could not store the file. Error: " + e.getMessage());
         }
     }
@@ -361,5 +391,44 @@ public class CVService {
         private String category;
         private Double confidenceScore;
         private Integer yearsOfExperience;
+    }
+
+    /**
+     * Cacheable method to get user's latest CV
+     * Cached for 5 minutes, invalidated when user uploads new CV
+     */
+    @Cacheable(value = "userLatestCv", key = "#user.id")
+    public CV getLatestCv(User user) {
+        return cvRepository.findByUserOrderByCreatedAtDesc(user)
+                .stream()
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Cacheable method to get CV skills with details
+     * Cached for 15 minutes, used for roadmap generation
+     */
+    @Cacheable(value = "cvSkills", key = "#cv.id")
+    public List<CVSkill> getCvSkillsDetailed(CV cv) {
+        return cvSkillRepository.findByCv(cv);
+    }
+
+    /**
+     * Calculate SHA-256 hash of file bytes for duplicate detection
+     */
+    private String calculateFileHash(byte[] fileBytes) throws NoSuchAlgorithmException {
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        byte[] hashBytes = md.digest(fileBytes);
+        // Convert to hex string
+        StringBuilder hexString = new StringBuilder();
+        for (byte hashByte : hashBytes) {
+            String hex = Integer.toHexString(0xff & hashByte);
+            if (hex.length() == 1) {
+                hexString.append('0');
+            }
+            hexString.append(hex);
+        }
+        return hexString.toString();
     }
 }
