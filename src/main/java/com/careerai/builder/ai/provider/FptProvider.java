@@ -97,6 +97,31 @@ public class FptProvider extends AbstractHttpAiProvider implements AiProvider {
         }
     }
 
+    @Override
+    public Optional<String> explainJobMatch(String cvSummary, String jobDescription,
+                                             List<String> matchingSkills, List<String> missingSkills) {
+        try {
+            log.info("FPT AI gap explanation request using model '{}'", aiProperties.getFpt().getModel());
+
+            // Gap explanation trả về Markdown, không phải JSON → dùng text mode
+            JsonNode requestBody = buildTextRequestBody(
+                    promptFactory.buildGapExplanationSystemPrompt(),
+                    promptFactory.buildGapExplanationUserPrompt(cvSummary, jobDescription, matchingSkills, missingSkills));
+
+            JsonNode response = postJson(
+                    aiProperties.getFpt().getBaseUrl() + "/chat/completions",
+                    requestBody,
+                    authHeaders(aiProperties.getFpt().getApiKey()));
+
+            String explanation = extractText(response);
+            log.info("✓ FPT AI gap explanation succeeded ({} chars)", explanation.length());
+            return Optional.of(explanation);
+        } catch (Exception ex) {
+            log.warn("✗ FPT AI gap explanation failed: {}", ex.getMessage(), ex);
+            return Optional.empty();
+        }
+    }
+
     private JsonNode buildRequestBody(String systemPrompt, String userPrompt) {
         return getObjectMapperTree(Map.of(
                 "model", aiProperties.getFpt().getModel(),
@@ -105,6 +130,18 @@ public class FptProvider extends AbstractHttpAiProvider implements AiProvider {
                         Map.of("role", "user", "content", userPrompt)),
                 "temperature", aiProperties.getFpt().getTemperature(),
                 "response_format", Map.of("type", "json_object")));
+    }
+
+    /**
+     * Build request body for text/markdown responses (no JSON format constraint).
+     */
+    private JsonNode buildTextRequestBody(String systemPrompt, String userPrompt) {
+        return getObjectMapperTree(Map.of(
+                "model", aiProperties.getFpt().getModel(),
+                "messages", List.of(
+                        Map.of("role", "system", "content", systemPrompt),
+                        Map.of("role", "user", "content", userPrompt)),
+                "temperature", aiProperties.getFpt().getTemperature()));
     }
 
     private HttpHeaders authHeaders(String apiKey) {

@@ -153,4 +153,76 @@ public class AiPromptFactory {
                 currentSkillsText,
                 missingSkillsText);
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  GAP ANALYSIS EXPLANATION (Module 6)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    public String buildGapExplanationSystemPrompt() {
+        return """
+                You are a career advisor and job matching specialist.
+                Your role is to explain why a candidate's CV matches or doesn't match a specific job description.
+
+                ## Your Task
+                Given the candidate's profile summary, the job description, and the skill comparison results,
+                write a clear, actionable explanation in MARKDOWN format.
+
+                ## Output Format (Markdown, NOT JSON)
+                Write directly in markdown with these sections:
+
+                ## Career Fit Analysis
+                [2-3 sentences: overall assessment of fit, mentioning the match percentage context]
+
+                ## Why You Match
+                [For each matching skill, briefly explain how it's relevant to this role]
+
+                ## Skill Gaps to Address
+                [For each missing skill, explain why it matters for this role and suggest a learning path]
+
+                ## Recommended Next Steps
+                [3-5 specific, actionable steps the candidate should take]
+
+                ## Rules
+                - Be specific and actionable — avoid generic advice.
+                - Reference the actual skills mentioned, not vague categories.
+                - Keep each section concise (2-4 sentences or bullet points).
+                - Tone: professional, encouraging, and honest.
+                - Do NOT wrap in JSON. Write plain markdown.
+                """;
+    }
+
+    public String buildGapExplanationUserPrompt(String cvSummary, String jobDescription,
+                                                 java.util.List<String> matchingSkills,
+                                                 java.util.List<String> missingSkills) {
+        String matchingText = matchingSkills.isEmpty()
+                ? "None identified"
+                : String.join(", ", matchingSkills);
+
+        String missingText = missingSkills.isEmpty()
+                ? "No significant gaps — candidate appears role-ready"
+                : String.join(", ", missingSkills);
+
+        return """
+                Analyze the fit between this candidate and the job below.
+
+                ## Candidate Profile
+                %s
+
+                ## Job Description
+                %s
+
+                ## Skills the candidate already has that match this job
+                %s
+
+                ## Skills the candidate is missing for this job
+                %s
+
+                ## Instructions
+                - Focus on the practical implications of the skill gaps.
+                - Suggest specific resources or learning paths for missing skills.
+                - Be encouraging but honest about the gap size.
+                - Write in markdown format, NOT JSON.
+                """.formatted(cvSummary, jobDescription, matchingText, missingText);
+    }
 }
+

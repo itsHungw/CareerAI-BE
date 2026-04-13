@@ -47,12 +47,12 @@ import java.util.UUID;
 @Slf4j
 public class CVService {
 
-    private static final Map<String, SkillTemplate> SKILL_LEXICON = buildSkillLexicon();
-
     private final AiOrchestratorService aiOrchestratorService;
     private final CVRepository cvRepository;
     private final CVSkillRepository cvSkillRepository;
     private final SkillService skillService;
+    private final PdfParsingService pdfParsingService;
+    private final InferenceService inferenceService;
 
     @Value("${app.upload-dir}")
     private String uploadDir;
@@ -90,15 +90,15 @@ public class CVService {
             Path filePath = root.resolve(uniqueFileName);
             Files.copy(file.getInputStream(), filePath);
 
-            String extractedText = extractSearchableText(file, originalFileName);
+            String extractedText = pdfParsingService.extractSearchableText(file, originalFileName);
 
             CV cv = CV.builder()
                     .user(user)
                     .fileName(uniqueFileName)
                     .fileUrl("/api/cv/download/" + uniqueFileName)
                     .rawText(extractedText)
-                    .fileHash(fileHash)          // Store hash
-                    .fileSize(file.getSize())    // Store size
+                    .fileHash(fileHash)
+                    .fileSize(file.getSize())
                     .lastAnalyzedAt(LocalDateTime.now())
                     .build();
 
@@ -109,7 +109,7 @@ public class CVService {
                     savedCv.getId(),
                     analysis.getReview(),
                     analysis.getSummary(),
-                    toExtractionResults(analysis.getSkills()));
+                    toInclusionResults(analysis.getSkills()));
 
             return CVResponse.builder()
                     .id(enrichedCv.getId())
@@ -148,7 +148,7 @@ public class CVService {
     }
 
     @Transactional
-    public CV saveExtractedIntelligence(UUID cvId, String review, String summary, List<ExtractionResult> extractedSkills) {
+    public CV saveExtractedIntelligence(UUID cvId, String review, String summary, List<InferenceService.ExtractionResult> extractedSkills) {
         CV cv = cvRepository.findById(cvId)
                 .orElseThrow(() -> new IllegalArgumentException("CV not found with ID: " + cvId));
 
@@ -156,7 +156,7 @@ public class CVService {
         cv.setSummary(summary);
         cvSkillRepository.deleteByCv(cv);
 
-        for (ExtractionResult extract : extractedSkills) {
+        for (InferenceService.ExtractionResult extract : extractedSkills) {
             Skill normalizedSkill = skillService.normalizeAndHandleSkill(extract.getSkillName(), extract.getCategory());
 
             CVSkill cvSkill = CVSkill.builder()
@@ -171,44 +171,7 @@ public class CVService {
 
         return cvRepository.save(cv);
     }
-
-    private String extractSearchableText(MultipartFile file, String originalFileName) throws IOException {
-        String extractedPdfText = extractPdfText(file);
-        if (!extractedPdfText.isBlank()) {
-            String normalizedText = normalizeExtractedText(extractedPdfText);
-            return String.join(" ",
-                    "file-name:", originalFileName,
-                    "pdf-text:", normalizedText);
-        }
-
-        String bytePreview = new String(file.getBytes(), StandardCharsets.ISO_8859_1);
-        String normalizedPreview = normalizeExtractedText(bytePreview);
-        return String.join(" ",
-                "file-name:", originalFileName,
-                "heuristic-preview:", normalizedPreview);
-    }
-
-    private String extractPdfText(MultipartFile file) {
-        try (InputStream inputStream = file.getInputStream();
-             PDDocument document = Loader.loadPDF(inputStream.readAllBytes())) {
-            PDFTextStripper textStripper = new PDFTextStripper();
-            return textStripper.getText(document);
-        } catch (IOException ex) {
-            log.warn("Failed to parse PDF content for '{}': {}", file.getOriginalFilename(), ex.getMessage());
-            return "";
-        }
-    }
-
-    private String normalizeExtractedText(String text) {
-        String normalized = text.replaceAll("[^\\p{L}\\p{N}\\.\\+#\\-/ ]", " ")
-                .replaceAll("\\s+", " ")
-                .trim();
-        if (normalized.length() > 12000) {
-            return normalized.substring(0, 12000);
-        }
-        return normalized;
-    }
-
+    
     private CvAnalysisResult analyzeCvWithFallback(String originalFileName, String extractedText) {
         return aiOrchestratorService.analyzeCv(CvAnalysisRequest.builder()
                         .fileName(originalFileName)
@@ -217,11 +180,11 @@ public class CVService {
                 .filter(this::hasUsableAnalysis)
                 .orElseGet(() -> {
                     log.warn("⚠️ AI CV analysis returned unusable result or failed. Falling back to keyword-based analysis.");
-                    List<ExtractionResult> fallbackSkills = inferSkills(extractedText);
+                    List<InferenceService.ExtractionResult> fallbackSkills = inferenceService.inferSkills(extractedText);
                     log.info("✓ Fallback CV analysis generated {} skills", fallbackSkills.size());
                     return CvAnalysisResult.builder()
-                            .summary(buildSummary(fallbackSkills))
-                            .review(buildReview(fallbackSkills))
+                            .summary(inferenceService.buildHeuristicSummary(fallbackSkills))
+                            .review(inferenceService.buildHeuristicReview(fallbackSkills))
                             .skills(toSkillSignals(fallbackSkills))
                             .build();
                 });
@@ -237,30 +200,10 @@ public class CVService {
                 && !result.getSkills().isEmpty();
     }
 
-    private List<ExtractionResult> inferSkills(String extractedText) {
-        String normalizedText = extractedText.toLowerCase();
-        List<ExtractionResult> results = new ArrayList<>();
-
-        for (Map.Entry<String, SkillTemplate> entry : SKILL_LEXICON.entrySet()) {
-            if (normalizedText.contains(entry.getKey())) {
-                SkillTemplate template = entry.getValue();
-                results.add(new ExtractionResult(template.skillName(), template.category(), 0.72d, template.defaultYears()));
-            }
-        }
-
-        if (results.isEmpty()) {
-            results.add(new ExtractionResult("Communication", "Soft Skill", 0.45d, 1));
-            results.add(new ExtractionResult("Problem Solving", "Soft Skill", 0.45d, 1));
-            results.add(new ExtractionResult("Git", "Tooling", 0.40d, 1));
-        }
-
-        return results;
-    }
-
-    private List<ExtractionResult> toExtractionResults(List<CvSkillSignal> skills) {
-        List<ExtractionResult> results = new ArrayList<>();
+    private List<InferenceService.ExtractionResult> toInclusionResults(List<CvSkillSignal> skills) {
+        List<InferenceService.ExtractionResult> results = new ArrayList<>();
         for (CvSkillSignal skill : skills) {
-            results.add(new ExtractionResult(
+            results.add(new InferenceService.ExtractionResult(
                     skill.getSkillName(),
                     skill.getCategory() == null || skill.getCategory().isBlank() ? "General" : skill.getCategory(),
                     skill.getConfidenceScore() == null ? 0.5d : skill.getConfidenceScore(),
@@ -269,9 +212,9 @@ public class CVService {
         return results;
     }
 
-    private List<CvSkillSignal> toSkillSignals(List<ExtractionResult> extractedSkills) {
+    private List<CvSkillSignal> toSkillSignals(List<InferenceService.ExtractionResult> extractedSkills) {
         List<CvSkillSignal> signals = new ArrayList<>();
-        for (ExtractionResult extract : extractedSkills) {
+        for (InferenceService.ExtractionResult extract : extractedSkills) {
             signals.add(CvSkillSignal.builder()
                     .skillName(extract.getSkillName())
                     .category(extract.getCategory())
@@ -280,117 +223,6 @@ public class CVService {
                     .build());
         }
         return signals;
-    }
-
-    private String buildReview(List<ExtractionResult> inferredSkills) {
-        if (inferredSkills.isEmpty()) {
-            return "## 💪 Strengths\n\nNo specific technical skills detected. Consider updating your CV with concrete technical expertise.\n\n" +
-                    "## 🎯 Improvement Areas\n\n1. Add specific technologies and tools you've used\n" +
-                    "2. Include quantifiable results and achievements\n" +
-                    "3. Highlight relevant projects and certifications\n\n" +
-                    "## 💡 Quick Tips\n\n- Be specific with skill names (e.g., 'Java 21' instead of 'programming')\n" +
-                    "- Mention years of experience for each skill\n" +
-                    "- Include both hard and soft skills for a complete profile\n\n" +
-                    "*Note: This is a heuristic analysis. For detailed AI-powered insights, ensure your system is properly configured.*";
-        }
-
-        StringBuilder builder = new StringBuilder();
-
-        // Group skills by category
-        Map<String, List<ExtractionResult>> skillsByCategory = inferredSkills.stream()
-                .collect(java.util.stream.Collectors.groupingBy(ExtractionResult::getCategory));
-
-        // Strengths section
-        builder.append("## 💪 Strengths\n\n");
-        builder.append("Your CV highlights a diverse skill set across multiple areas:\n\n");
-        skillsByCategory.forEach((category, skills) -> {
-            builder.append("**").append(category).append(":**\n");
-            skills.forEach(skill -> {
-                builder.append("- ").append(skill.getSkillName());
-                if (skill.getYearsOfExperience() != null && skill.getYearsOfExperience() > 0) {
-                    builder.append(" (~").append(skill.getYearsOfExperience()).append(" years)");
-                }
-                builder.append("\n");
-            });
-            builder.append("\n");
-        });
-
-        // Improvement Areas section
-        builder.append("## 🎯 Improvement Areas\n\n");
-        builder.append("To strengthen your profile:\n\n");
-
-        boolean hasBackend = skillsByCategory.containsKey("Backend");
-        boolean hasFrontend = skillsByCategory.containsKey("Frontend");
-        boolean hasDevOps = skillsByCategory.containsKey("DevOps/Infrastructure");
-        boolean hasData = skillsByCategory.containsKey("Data");
-
-        if (!hasBackend && !hasFrontend) {
-            builder.append("1. **Tech Stack Definition:** Specify backend and/or frontend technologies\n");
-        }
-        if (!hasDevOps) {
-            builder.append("2. **Platform & Deployment Skills:** Add AWS, Docker, Kubernetes, or similar\n");
-        }
-        if (!hasData) {
-            builder.append("3. **Data & Analytics:** Consider including SQL, databases, or analytics tools\n");
-        }
-        builder.append("4. **Project Outcomes:** Quantify your contributions (e.g., 'Improved performance by 30%')\n");
-        builder.append("5. **Soft Skills:** Professional development, leadership, or communication skills\n\n");
-
-        // Quick Tips section
-        builder.append("## 💡 Quick Tips\n\n");
-        builder.append("- **Be Specific:** Use exact tool/library names (not 'databases' → 'PostgreSQL')\n");
-        builder.append("- **Show Impact:** Numbers matter: years, scale, or outcomes\n");
-        builder.append("- **Organized Layout:** Group similar skills together for readability\n");
-        builder.append("- **Tailor to Role:** Highlight skills most relevant to your target job\n\n");
-
-        builder.append("*Tip: This analysis is generated from keyword extraction. Upload a fresh CV or configure AI provider for more comprehensive insights.*");
-
-        return builder.toString().trim();
-    }
-
-    private String buildSummary(List<ExtractionResult> inferredSkills) {
-        String joinedSkills = inferredSkills.stream()
-                .limit(4)
-                .map(ExtractionResult::getSkillName)
-                .reduce((left, right) -> left + ", " + right)
-                .orElse("foundational professional skills");
-
-        return "Current CV profile suggests experience around " + joinedSkills
-                + ". This summary is generated from heuristic extraction and is sufficient to bootstrap roadmap generation, but it should later be replaced by full PDF parsing plus AI enrichment.";
-    }
-
-    private static Map<String, SkillTemplate> buildSkillLexicon() {
-        Map<String, SkillTemplate> lexicon = new LinkedHashMap<>();
-        lexicon.put("spring boot", new SkillTemplate("Spring Boot", "Backend", 1));
-        lexicon.put("java", new SkillTemplate("Java", "Backend", 1));
-        lexicon.put("react", new SkillTemplate("React", "Frontend", 1));
-        lexicon.put("next.js", new SkillTemplate("Next.js", "Frontend", 1));
-        lexicon.put("nextjs", new SkillTemplate("Next.js", "Frontend", 1));
-        lexicon.put("typescript", new SkillTemplate("TypeScript", "Frontend", 1));
-        lexicon.put("javascript", new SkillTemplate("JavaScript", "Frontend", 1));
-        lexicon.put("node.js", new SkillTemplate("Node.js", "Backend", 1));
-        lexicon.put("nodejs", new SkillTemplate("Node.js", "Backend", 1));
-        lexicon.put("postgresql", new SkillTemplate("PostgreSQL", "Database", 1));
-        lexicon.put("sql", new SkillTemplate("SQL", "Database", 1));
-        lexicon.put("docker", new SkillTemplate("Docker", "DevOps", 1));
-        lexicon.put("aws", new SkillTemplate("AWS", "Cloud", 1));
-        lexicon.put("html", new SkillTemplate("HTML", "Frontend", 1));
-        lexicon.put("css", new SkillTemplate("CSS", "Frontend", 1));
-        lexicon.put("python", new SkillTemplate("Python", "Backend", 1));
-        lexicon.put("git", new SkillTemplate("Git", "Tooling", 1));
-        return lexicon;
-    }
-
-    private record SkillTemplate(String skillName, String category, Integer defaultYears) {
-    }
-
-    @lombok.Data
-    @lombok.AllArgsConstructor
-    public static class ExtractionResult {
-        private String skillName;
-        private String category;
-        private Double confidenceScore;
-        private Integer yearsOfExperience;
     }
 
     /**

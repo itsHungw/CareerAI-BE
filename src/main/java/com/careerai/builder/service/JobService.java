@@ -32,11 +32,11 @@ public class JobService {
         Map<String, Skill> userSkillMap = userSkills.stream()
                 .collect(Collectors.toMap(cs -> cs.getSkill().getName().toLowerCase(), CVSkill::getSkill));
 
-        List<Job> allJobs = jobRepository.findAll();
+        List<Job> allJobs = jobRepository.findAllWithRequirementsAndSkills();
 
         return allJobs.stream()
                 .map(job -> {
-                    List<JobRequirement> requirements = jobRequirementRepository.findByJobWithSkills(job);
+                List<JobRequirement> requirements = job.getRequirements();
 
                     long mandatoryCount = requirements.stream().filter(JobRequirement::getIsMandatory).count();
                     long matchCount = requirements.stream()

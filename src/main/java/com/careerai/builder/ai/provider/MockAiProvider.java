@@ -87,6 +87,36 @@ public class MockAiProvider implements AiProvider {
                 .build());
     }
 
+    @Override
+    public Optional<String> explainJobMatch(String cvSummary, String jobDescription,
+                                             List<String> matchingSkills, List<String> missingSkills) {
+        log.info("Mock AI: Generating gap explanation");
+        String explanation = """
+                ## Career Fit Analysis
+
+                Based on our analysis, your profile shows **%d matching skills** and **%d skill gaps** for this role.
+
+                ## Why You Match
+                %s
+
+                ## Skill Gaps to Address
+                %s
+
+                ## Recommended Next Steps
+                1. Focus on learning the missing skills through online courses and projects.
+                2. Update your CV to highlight relevant matching skills more prominently.
+                3. Consider building a portfolio project that demonstrates both existing and newly acquired skills.
+                """.formatted(
+                matchingSkills.size(),
+                missingSkills.size(),
+                matchingSkills.isEmpty() ? "No direct skill matches were identified." :
+                        String.join(", ", matchingSkills) + " — these are directly relevant to the role.",
+                missingSkills.isEmpty() ? "No significant gaps — you appear role-ready!" :
+                        String.join(", ", missingSkills) + " — prioritize these in your learning plan."
+        );
+        return Optional.of(explanation);
+    }
+
     private static Map<String, CvSkillSignal> buildSkillLexicon() {
         Map<String, CvSkillSignal> lexicon = new LinkedHashMap<>();
         lexicon.put("java", CvSkillSignal.builder().skillName("Java").category("Backend").confidenceScore(0.72d).yearsOfExperience(1).build());

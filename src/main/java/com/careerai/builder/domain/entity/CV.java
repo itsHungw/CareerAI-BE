@@ -7,6 +7,8 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -42,6 +44,11 @@ public class CV {
 
     @Column(columnDefinition = "TEXT")
     private String summary;
+
+    @JsonIgnore
+    @Builder.Default
+    @OneToMany(mappedBy = "cv", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CVSkill> skills = new ArrayList<>();
 
     @Column(name = "file_hash", length = 64)
     private String fileHash;  // SHA-256 hash for duplicate detection

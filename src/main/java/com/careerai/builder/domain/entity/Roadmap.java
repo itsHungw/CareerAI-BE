@@ -7,6 +7,8 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -32,6 +34,11 @@ public class Roadmap {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cv_id")
     private CV sourceCv;
+
+    @JsonIgnore
+    @Builder.Default
+    @OneToMany(mappedBy = "roadmap", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<RoadmapStep> steps = new ArrayList<>();
 
     @Column(nullable = false)
     private String targetTitle;

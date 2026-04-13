@@ -114,41 +114,29 @@ public class RoadmapService {
 
     @Transactional(readOnly = true)
     @Cacheable(value = "userRoadmapsJSON", key = "#user.id")
-    public RoadmapListDTO getUserRoadmaps(User user) {
-        List<Roadmap> roadmaps = roadmapRepository.findByUserOrderByCreatedAtDesc(user);
-        return new RoadmapListDTO(roadmaps.stream().map(this::toRoadmapResponse).toList());
+    public RoadmapListDTO getUserRoadmaps(User user, org.springframework.data.domain.Pageable pageable) {
+        org.springframework.data.domain.Page<Roadmap> roadmapPage = roadmapRepository.findByUserOrderByCreatedAtDesc(user, pageable);
+        return new RoadmapListDTO(roadmapPage.getContent().stream().map(this::toRoadmapResponse).toList());
     }
 
     @Transactional(readOnly = true)
-    @Cacheable(value = "roadmapStepsJSON", key = "#roadmapId")
-    public RoadmapStepListDTO getRoadmapSteps(UUID roadmapId) {
-        Roadmap roadmap = roadmapRepository.findById(roadmapId)
-                .orElseThrow(() -> new IllegalArgumentException("Roadmap not found"));
+    @Cacheable(value = "roadmapStepsJSON", key = "#roadmapId + ':' + #user.id")
+    public RoadmapStepListDTO getRoadmapSteps(UUID roadmapId, User user) {
+        Roadmap roadmap = roadmapRepository.findByIdAndUser(roadmapId, user)
+                .orElseThrow(() -> new ApiException("Roadmap not found", HttpStatus.NOT_FOUND));
         List<RoadmapStep> steps = roadmapStepRepository.findByRoadmapOrderByOrderIndexAsc(roadmap);
         return new RoadmapStepListDTO(steps.stream().map(this::toStepResponse).toList());
     }
 
     @Transactional
-    public RoadmapStep updateStepStatus(UUID stepId, RoadmapStep.StepStatus newStatus) {
-        RoadmapStep step = roadmapStepRepository.findById(stepId)
-                .orElseThrow(() -> new IllegalArgumentException("Step not found"));
+    @CacheEvict(value = "roadmapStepsJSON", key = "#roadmapId + ':' + #user.id")
+    public RoadmapStep updateStepStatus(UUID stepId, RoadmapStep.StepStatus newStatus, User user) {
+        RoadmapStep step = roadmapStepRepository.findByIdAndRoadmapUser(stepId, user)
+                .orElseThrow(() -> new ApiException("Step not found", HttpStatus.NOT_FOUND));
 
-        UUID roadmapId = step.getRoadmap().getId();  // Extract roadmapId for cache invalidation
         step.setStatus(newStatus);
 
-        RoadmapStep saved = roadmapStepRepository.save(step);
-        invalidateRoadmapStepsCache(roadmapId);  // Invalidate cache after save
-
-        return saved;
-    }
-
-    /**
-     * Private method to invalidate roadmap steps cache
-     * Called after a step status is updated
-     */
-    @CacheEvict(value = "roadmapStepsJSON", key = "#roadmapId")
-    private void invalidateRoadmapStepsCache(UUID roadmapId) {
-        log.debug("Invalidating roadmap steps cache for roadmap: {}", roadmapId);
+        return roadmapStepRepository.save(step);
     }
 
     private void archiveActiveRoadmaps(User user) {

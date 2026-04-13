@@ -33,6 +33,12 @@ public class AiOrchestratorService {
         return execute(provider -> provider.generateRoadmap(request));
     }
 
+    public Optional<String> explainJobMatch(String cvSummary, String jobDescription,
+                                             java.util.List<String> matchingSkills,
+                                             java.util.List<String> missingSkills) {
+        return execute(provider -> provider.explainJobMatch(cvSummary, jobDescription, matchingSkills, missingSkills));
+    }
+
     public AiStatusResponse getStatus() {
         return AiStatusResponse.builder()
                 .enabled(aiProperties.isEnabled())

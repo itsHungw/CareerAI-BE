@@ -18,6 +18,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.data.domain.PageRequest;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,9 +31,12 @@ public class RoadmapController {
     private final UserRepository userRepository;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<RoadmapResponse>>> getMyRoadmaps() {
+    public ResponseEntity<ApiResponse<List<RoadmapResponse>>> getMyRoadmaps(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
         User user = getCurrentUser();
-        return ResponseEntity.ok(ApiResponse.success("Roadmaps retrieved successfully", roadmapService.getUserRoadmaps(user).getRoadmaps()));
+        return ResponseEntity.ok(ApiResponse.success("Roadmaps retrieved successfully", 
+                roadmapService.getUserRoadmaps(user, PageRequest.of(page, size)).getRoadmaps()));
     }
 
     @PostMapping("/generate")
@@ -45,14 +49,16 @@ public class RoadmapController {
 
     @GetMapping("/{id}/steps")
     public ResponseEntity<ApiResponse<List<RoadmapStepResponse>>> getRoadmapSteps(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.success("Steps retrieved successfully", roadmapService.getRoadmapSteps(id).getSteps()));
+        User user = getCurrentUser();
+        return ResponseEntity.ok(ApiResponse.success("Steps retrieved successfully", roadmapService.getRoadmapSteps(id, user).getSteps()));
     }
 
     @PatchMapping("/steps/{stepId}/status")
     public ResponseEntity<ApiResponse<RoadmapStep>> updateStepStatus(
             @PathVariable UUID stepId, 
             @RequestParam RoadmapStep.StepStatus status) {
-        return ResponseEntity.ok(ApiResponse.success("Status updated", roadmapService.updateStepStatus(stepId, status)));
+        User user = getCurrentUser();
+        return ResponseEntity.ok(ApiResponse.success("Status updated", roadmapService.updateStepStatus(stepId, status, user)));
     }
 
     private User getCurrentUser() {

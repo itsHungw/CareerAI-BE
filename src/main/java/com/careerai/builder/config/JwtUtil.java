@@ -23,6 +23,20 @@ public class JwtUtil {
     @Value("${jwt.secret}")
     private String secretKey;
 
+    @jakarta.annotation.PostConstruct
+    public void validateSecretKey() {
+        if (secretKey == null || secretKey.isBlank() || "YOUR_JWT_SECRET".equals(secretKey)) {
+            throw new IllegalStateException("JWT secret is missing or using default value. " +
+                    "Please set JWT_SECRET environment variable.");
+        }
+        
+        byte[] keyBytes = decodeSecretKey(secretKey.trim());
+        if (keyBytes.length < 32) {
+             throw new IllegalStateException("JWT secret is too short. " +
+                     "Use at least 32 bytes (256 bits) for HS256 security.");
+        }
+    }
+
     @Value("${jwt.expiration}")
     private long jwtExpiration;
 
