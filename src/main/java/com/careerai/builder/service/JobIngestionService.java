@@ -10,6 +10,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -79,27 +80,30 @@ public class JobIngestionService {
     }
 
     /**
-     * Batch ingest tất cả Job có trạng thái PENDING.
+     * Batch ingest tất cả Job có trạng thái PENDING hoặc FAILED (retry).
      *
      * @return số lượng Job được ingest thành công
      */
     public int ingestPendingJobs() {
-        List<Job> pendingJobs = jobRepository.findByIngestionStatus(Job.IngestionStatus.PENDING);
-        log.info("🔍 Tìm thấy {} pending jobs cần ingest", pendingJobs.size());
+        List<Job> jobsToIngest = new ArrayList<>();
+        jobsToIngest.addAll(jobRepository.findByIngestionStatus(Job.IngestionStatus.PENDING));
+        jobsToIngest.addAll(jobRepository.findByIngestionStatus(Job.IngestionStatus.FAILED));
+
+        log.info("🔍 Tìm thấy {} jobs cần ingest/retry (PENDING + FAILED)", jobsToIngest.size());
 
         int success = 0;
-        for (Job job : pendingJobs) {
+        for (Job job : jobsToIngest) {
             try {
                 ingestJob(job);
                 success++;
             } catch (Exception e) {
-                log.error("❌ Failed to ingest Job '{}' (ID: {}): {}", job.getTitle(), job.getId(), e.getMessage());
+                log.error("❌ Failed to ingest Job '{}' (ID: {})", job.getTitle(), job.getId(), e);
                 job.setIngestionStatus(Job.IngestionStatus.FAILED);
                 jobRepository.save(job);
             }
         }
 
-        log.info("📊 Ingestion batch hoàn tất: {}/{} thành công", success, pendingJobs.size());
+        log.info("📊 Ingestion batch hoàn tất: {}/{} thành công", success, jobsToIngest.size());
         return success;
     }
 

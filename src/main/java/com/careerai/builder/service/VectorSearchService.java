@@ -12,7 +12,6 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
-import org.springframework.ai.vectorstore.filter.Filter.Expression;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -45,7 +44,10 @@ public class VectorSearchService {
      * @return Danh sách Jobs được xếp hạng theo mức độ phù hợp
      */
     public List<MatchedJobResponse> searchAndMatch(String cvText, MatchQuery query) {
-        log.info("🔍 Bắt đầu Vector Search — role: {}, level: {}", query.getRole(), query.getLevel());
+        String effectiveRole = normalizeRoleFilter(normalizeFilterInput(query.getRole()));
+        String effectiveLevel = normalizeLevelFilter(normalizeFilterInput(query.getLevel()));
+
+        log.info("🔍 Bắt đầu Vector Search — role: {}, level: {}", effectiveRole, effectiveLevel);
 
         // 1. Xây dựng search query (kết hợp CV context + user filter)
         String searchQuery = buildEnhancedQuery(cvText, query);
@@ -56,16 +58,23 @@ public class VectorSearchService {
                 .topK(30);  // Lấy 30 chunks gần nhất
 
         // 3. Áp dụng metadata filter (lọc cứng: chỉ tìm trong JD docs)
-        StringBuilder filterStr = new StringBuilder("docType == 'JD'");
+        FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
+        FilterExpressionBuilder.Op filterOp = filterBuilder.eq("docType", "JD");
 
-        if (query.getRole() != null && !query.getRole().isBlank()) {
-            filterStr.append(" && role == '").append(query.getRole().toLowerCase()).append("'");
+        if (!effectiveRole.isBlank()) {
+            filterOp = filterBuilder.and(
+                filterOp,
+                filterBuilder.eq("role", effectiveRole)
+            );
         }
-        if (query.getLevel() != null && !query.getLevel().isBlank()) {
-            filterStr.append(" && level == '").append(query.getLevel().toLowerCase()).append("'");
+        if (!effectiveLevel.isBlank()) {
+            filterOp = filterBuilder.and(
+                filterOp,
+                filterBuilder.eq("level", effectiveLevel)
+            );
         }
 
-        searchBuilder.filterExpression(filterStr.toString());
+        searchBuilder.filterExpression(filterOp.build());
 
         // 4. Thực hiện Vector Search
         List<Document> results;
@@ -76,11 +85,12 @@ public class VectorSearchService {
             return List.of();
         }
 
-        log.info("📊 Vector Search trả về {} chunks", results.size());
-
-        if (results.isEmpty()) {
+        if (results == null || results.isEmpty()) {
+            log.info("📊 Vector Search trả về 0 chunks");
             return List.of();
         }
+
+        log.info("📊 Vector Search trả về {} chunks", results.size());
 
         // 5. Group chunks by Job ID
         Map<String, List<Document>> groupedByJob = results.stream()
@@ -146,14 +156,18 @@ public class VectorSearchService {
         StringBuilder sb = new StringBuilder();
         sb.append("Find job descriptions matching this candidate profile:\n\n");
 
-        if (query.getRole() != null && !query.getRole().isBlank()) {
-            sb.append("Target Role: ").append(query.getRole()).append("\n");
+        String effectiveRole = normalizeRoleFilter(normalizeFilterInput(query.getRole()));
+        String effectiveLevel = normalizeLevelFilter(normalizeFilterInput(query.getLevel()));
+        String effectiveLocation = normalizeFilterInput(query.getLocation());
+
+        if (!effectiveRole.isBlank()) {
+            sb.append("Target Role: ").append(effectiveRole).append("\n");
         }
-        if (query.getLevel() != null && !query.getLevel().isBlank()) {
-            sb.append("Experience Level: ").append(query.getLevel()).append("\n");
+        if (!effectiveLevel.isBlank()) {
+            sb.append("Experience Level: ").append(effectiveLevel).append("\n");
         }
-        if (query.getLocation() != null && !query.getLocation().isBlank()) {
-            sb.append("Preferred Location: ").append(query.getLocation()).append("\n");
+        if (!effectiveLocation.isBlank()) {
+            sb.append("Preferred Location: ").append(effectiveLocation).append("\n");
         }
 
         sb.append("\nCandidate Skills & Experience:\n");
@@ -177,5 +191,39 @@ public class VectorSearchService {
         private String jobId;
         private Double matchScore;
         private Integer chunkMatches;
+    }
+
+    private String sanitizeFilterValue(String value) {
+        if (value == null) {
+            return "";
+        }
+        // Allow alphanumeric, spaces, hyphens, dots, and plus signs (for skills like C++)
+        return value.replaceAll("[^a-zA-Z0-9\\s\\-+.]", "").toLowerCase().trim();
+    }
+
+    private String normalizeFilterInput(String value) {
+        String sanitized = sanitizeFilterValue(value);
+        if (sanitized.isBlank()) {
+            return "";
+        }
+
+        // Ignore placeholder values often sent by Swagger/manual tests.
+        Set<String> invalidPlaceholders = Set.of("string", "null", "undefined", "n/a", "none");
+        return invalidPlaceholders.contains(sanitized) ? "" : sanitized;
+    }
+
+    private String normalizeRoleFilter(String role) {
+        return switch (role) {
+            case "ai", "ml", "machine learning" -> "data";
+            default -> role;
+        };
+    }
+
+    private String normalizeLevelFilter(String level) {
+        return switch (level) {
+            case "middle" -> "mid";
+            case "manager" -> "lead";
+            default -> level;
+        };
     }
 }

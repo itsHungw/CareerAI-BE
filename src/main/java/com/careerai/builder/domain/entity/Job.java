@@ -60,11 +60,18 @@ public class Job {
 
     @Enumerated(EnumType.STRING)
     @Builder.Default
-    @Column(length = 20)
+    @Column(length = 20, nullable = false)
     private IngestionStatus ingestionStatus = IngestionStatus.PENDING;
 
     @CreationTimestamp
     private LocalDateTime createdAt;
+
+    @PrePersist
+    private void prePersistDefaults() {
+        if (ingestionStatus == null) {
+            ingestionStatus = IngestionStatus.PENDING;
+        }
+    }
 
     public enum IngestionStatus {
         PENDING, INGESTED, FAILED

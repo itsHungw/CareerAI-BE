@@ -83,19 +83,21 @@ public class JobAdminController {
     }
 
     /**
-     * Trigger embedding pipeline cho tất cả Job có trạng thái PENDING.
+     * Trigger embedding pipeline cho tất cả Job có trạng thái PENDING + FAILED (retry).
      * Sẽ chunk JD → gọi Embedding API → lưu vào pgvector.
      */
     @PostMapping("/ingest")
     public ResponseEntity<ApiResponse<Map<String, Object>>> triggerIngestion() {
-        log.info("🚀 Triggering ingestion for all pending jobs");
+        log.info("🚀 Triggering ingestion for pending + failed jobs");
 
         int successCount = jobIngestionService.ingestPendingJobs();
         long totalPending = jobRepository.findByIngestionStatus(Job.IngestionStatus.PENDING).size();
+        long totalFailed = jobRepository.findByIngestionStatus(Job.IngestionStatus.FAILED).size();
 
         return ResponseEntity.ok(ApiResponse.success("Ingestion completed", Map.of(
                 "ingested", successCount,
-                "remaining_pending", totalPending
+                "remaining_pending", totalPending,
+                "remaining_failed", totalFailed
         )));
     }
 
